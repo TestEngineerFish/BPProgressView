@@ -54,10 +54,6 @@ class BPProgressView: UIView {
         self.layer.addSublayer(backgroundLayer)
         self.layer.addSublayer(progressLayer)
 
-        // ---- 背景色
-        self.backgroundLayer.backgroundColor = self.config.tineColor.cgColor
-        self.progressLayer.backgroundColor   = self.config.progressTineColor.cgColor
-
         // ---- 布局
         let backgroundX = config.backgourndMargin.left
         let backgroundY = config.backgourndMargin.top
@@ -72,18 +68,23 @@ class BPProgressView: UIView {
         self.progressLayer.frame   = CGRect(x: progressX, y: progressY, width: progressW, height: progressH)
         self.maxWidth = progressW
 
+        // ---- 背景色
+        self.backgroundLayer.backgroundColor = self.config.tineColor.cgColor
+        self.progressLayer.setGradient(colors: self.config.progressTineColor, direction: .horizontal)
+
         // ---- 添加路径
         let path = UIBezierPath()
         path.move(to: CGPoint(x: progressX, y: progressY + progressH / 2))
         path.addLine(to: CGPoint(x: progressX + progressW, y: progressY + progressH / 2))
 
         // ---- 设置遮罩
-        self.progressMask.path        = path.cgPath
-        self.progressMask.lineWidth   = progressH
-        self.progressMask.duration    = 0.01
-        self.progressMask.strokeColor = UIColor.yellow.cgColor
-        self.progressMask.fillColor   = nil
-        self.progressLayer.mask       = self.progressMask
+        self.progressMask.path           = path.cgPath
+        self.progressMask.lineWidth      = progressH
+        self.progressMask.duration       = 0.01
+        self.progressMask.strokeColor    = UIColor.yellow.cgColor
+        self.progressMask.fillColor      = nil
+        self.progressLayer.mask          = self.progressMask
+        self.progressLayer.masksToBounds = true
 
         // ---- 设置圆角
         if config.isCorner {
@@ -101,10 +102,12 @@ class BPProgressView: UIView {
             let sliderBarY = progressLayer.frame.midY - sliderBarH / 2
             sliderBar.frame = CGRect(x: sliderBarX, y: sliderBarY, width: sliderBarW, height: sliderBarH)
         }
-        // ---- 添加滑动事件
+        // ---- 添加手势事件
         self.isUserInteractionEnabled = true
         let pan = UIPanGestureRecognizer(target: self, action: #selector(pan(_:)))
+        let tap = UITapGestureRecognizer(target: self, action: #selector(tap(_:)))
         self.addGestureRecognizer(pan)
+        self.addGestureRecognizer(tap)
     }
 
     private func bindData(_ progress: Float) {
@@ -113,16 +116,25 @@ class BPProgressView: UIView {
         self.updateFrame(progress)
     }
 
-    // TODO: ==== UIPanGestureRecognizer ====
-
+    // TODO: ==== UIGestureRecognizer ====
+    /// 拖动
     @objc private func pan(_ pan: UIPanGestureRecognizer) {
         let point = pan.translation(in: self)
 
         let progress = (self.lastWidth + point.x) / self.maxWidth
+        print(progress)
         self.play(Float(progress))
         if pan.state == .ended {
             self.updateFrame(Float(progress))
         }
+    }
+
+    /// 点击
+    @objc private func tap(_ tap: UITapGestureRecognizer) {
+        let point = tap.location(in: self)
+        let progress = (point.x - self.progressLayer.frame.minX) / self.maxWidth
+        self.play(Float(progress))
+        self.updateFrame(Float(progress))
     }
 
     // TODO: ==== Tools ====
@@ -158,10 +170,10 @@ class BPProgressView: UIView {
 
     /// 更新进度条和滑块的Frame
     private func updateFrame(_ progress: Float) {
-        let progress = self.adjustProgress(progress)
+        let progress  = self.adjustProgress(progress)
         let progressW = self.maxWidth * CGFloat(progress)
         if let sliderBar = self.config.sliderBar {
-            let sliderBarX = progressW - sliderBar.bounds.width / 2
+            let sliderBarX  = progressW - sliderBar.bounds.width / 2
             sliderBar.frame = CGRect(x: sliderBarX, y: sliderBar.frame.origin.y, width: sliderBar.frame.width, height: sliderBar.frame.height)
         }
         self.lastWidth = progressW

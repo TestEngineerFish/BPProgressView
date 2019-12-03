@@ -21,8 +21,10 @@ class ViewController: UIViewController, UITableViewDelegate {
         sliderView.backgroundColor = UIColor.purple
         sliderView.frame = CGRect(x: 0, y: 0, width: 30, height: 30)
         sliderView.layer.cornerRadius = sliderView.frame.height / 2
+
         var config = BPProgressConfig()
         config.progress = 0.7
+        config.progressTineColor = [UIColor.yellow, UIColor.orange, UIColor.red]
 //        config.sliderBar = sliderView
         let frame = CGRect(x: 0, y: 0, width: 200, height: 10)
         let progressView = BPProgressView(config, frame: frame)

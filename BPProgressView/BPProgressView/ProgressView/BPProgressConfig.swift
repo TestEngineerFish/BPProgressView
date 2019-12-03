@@ -11,7 +11,7 @@ import UIKit
 /// 配置模型
 struct BPProgressConfig {
     /// 进度颜色
-    var progressTineColor = UIColor.orange
+    var progressTineColor = [UIColor.orange]
     /// 背景外边距
     var backgourndMargin = UIEdgeInsets.zero
     /// 进度条外边距
