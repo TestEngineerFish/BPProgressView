@@ -26,8 +26,10 @@ class ViewController: UIViewController, UITableViewDelegate {
         config.progress = 0.7
         config.progressTineColor = [UIColor.yellow, UIColor.orange, UIColor.red]
 //        config.sliderBar = sliderView
+
+        
         let frame = CGRect(x: 0, y: 0, width: 200, height: 10)
-        let progressView = BPProgressView(config, frame: frame)
+        let progressView = BPProgressViewFactory.buildView(config, frame: frame)
         progressView.center = self.view.center
         self.view.addSubview(progressView)
     }

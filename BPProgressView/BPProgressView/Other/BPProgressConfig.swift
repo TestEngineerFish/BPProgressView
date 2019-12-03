@@ -10,6 +10,8 @@ import UIKit
 
 /// 配置模型
 struct BPProgressConfig {
+    /// 进度条类型
+    var type: BPProgressType = .horizontal
     /// 进度颜色
     var progressTineColor = [UIColor.orange]
     /// 背景外边距
