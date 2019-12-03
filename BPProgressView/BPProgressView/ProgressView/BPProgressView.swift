@@ -15,7 +15,11 @@ enum BPProgressType {
     case semicircle // 半圆的进度条,支持指定半圆角度
 }
 
-class BPProgressView: UIView, CAAnimationDelegate {
+protocol BPProgressViewProtocol: NSObjectProtocol {
+    func updateProgress(_ progress: Float)
+}
+
+class BPProgressView: UIView {
 
     // TODO: ---- data ----
     // 用来保存当前进度
@@ -24,15 +28,18 @@ class BPProgressView: UIView, CAAnimationDelegate {
     var config: BPProgressConfig
     // 进度条最大长度
     var maxWidth = CGFloat.zero
+    // 最后一次更新的进度条长度
+    var lastWidth = CGFloat.zero
+    // 协议对象
+    var delegate: BPProgressViewProtocol?
 
     // TODO: ---- view ----
-    var backgroundLayer = CALayer()
-    var progressLayer   = CAShapeLayer()
-    var sliderBar: UIView?
+    var backgroundLayer = CAGradientLayer()
+    var progressLayer   = CAGradientLayer()
+    var progressMask    = CAShapeLayer()
 
     init(_ config: BPProgressConfig, frame: CGRect) {
         self.config          = config
-        self.sliderBar       = config.sliderBar
         self.currentProgress = config.progress
         super.init(frame: frame)
         self.createSubviews()
@@ -58,37 +65,40 @@ class BPProgressView: UIView, CAAnimationDelegate {
         let backgroundH = self.frame.height - config.backgourndMargin.top - config.backgourndMargin.bottom
         self.backgroundLayer.frame = CGRect(x: backgroundX, y: backgroundY, width: backgroundW, height: backgroundH)
 
-
         let progressW = backgroundLayer.frame.width - config.progressMargin.left - config.progressMargin.right
         let progressH = backgroundLayer.frame.height - config.progressMargin.top - config.progressMargin.bottom
         let progressX = backgroundLayer.frame.minX + config.progressMargin.left
-        let progressY = backgroundLayer.frame.minY + config.progressMargin.top + progressH / 2
-//        self.progressLayer.frame   = CGRect(x: progressX, y: progressY, width: progressH, height: progressH)
+        let progressY = backgroundLayer.frame.minY + config.progressMargin.top
+        self.progressLayer.frame   = CGRect(x: progressX, y: progressY, width: progressW, height: progressH)
         self.maxWidth = progressW
 
         // ---- 添加路径
         let path = UIBezierPath()
-        path.move(to: CGPoint(x: progressX, y: progressY))
-        path.addLine(to: CGPoint(x: progressX + progressW, y: progressY))
-        self.progressLayer.path        = path.cgPath
-        self.progressLayer.lineWidth   = progressH
-        self.progressLayer.lineJoin    = .round
-        self.progressLayer.strokeColor = UIColor.blue.cgColor
-        self.progressLayer.fillColor   = nil
-        // ---- 圆角
+        path.move(to: CGPoint(x: progressX, y: progressY + progressH / 2))
+        path.addLine(to: CGPoint(x: progressX + progressW, y: progressY + progressH / 2))
+
+        // ---- 设置遮罩
+        self.progressMask.path        = path.cgPath
+        self.progressMask.lineWidth   = progressH
+        self.progressMask.duration    = 0.01
+        self.progressMask.strokeColor = UIColor.yellow.cgColor
+        self.progressMask.fillColor   = nil
+        self.progressLayer.mask       = self.progressMask
+
+        // ---- 设置圆角
         if config.isCorner {
             self.backgroundLayer.cornerRadius = backgroundH / 2
             self.progressLayer.cornerRadius   = progressH / 2
+            self.progressMask.lineCap         = .round
         }
 
         // ---- 滑动块
-        if let sliderBar = self.sliderBar {
+        if let sliderBar = self.config.sliderBar {
             self.addSubview(sliderBar)
-
             let sliderBarW = sliderBar.bounds.size.width
             let sliderBarH = sliderBar.bounds.size.height
             let sliderBarX = progressLayer.frame.maxX - sliderBarW / 2
-            let sliderBarY = progressY - sliderBarH / 2
+            let sliderBarY = progressLayer.frame.midY - sliderBarH / 2
             sliderBar.frame = CGRect(x: sliderBarX, y: sliderBarY, width: sliderBarW, height: sliderBarH)
         }
         // ---- 添加滑动事件
@@ -98,31 +108,20 @@ class BPProgressView: UIView, CAAnimationDelegate {
     }
 
     private func bindData(_ progress: Float) {
+        self.lastWidth = self.maxWidth * CGFloat(progress)
         self.play(progress)
         self.updateFrame(progress)
     }
 
     // TODO: ==== UIPanGestureRecognizer ====
-    
+
     @objc private func pan(_ pan: UIPanGestureRecognizer) {
         let point = pan.translation(in: self)
 
-        let progress = (progressLayer.frame.width + point.x) / self.maxWidth
+        let progress = (self.lastWidth + point.x) / self.maxWidth
         self.play(Float(progress))
         if pan.state == .ended {
             self.updateFrame(Float(progress))
-        }
-    }
-
-    // TODO: CAAnimationDelegate
-
-    func animationDidStop(_ anim: CAAnimation, finished flag: Bool) {
-        guard let keyPath = anim.value(forKeyPath: "keyPath") as? String, let progress = anim.value(forKey: "progress") as? Float else {
-            return
-        }
-        if keyPath == "strokeEnd" {
-            // 更新当前进度
-            self.currentProgress = progress
         }
     }
 
@@ -133,20 +132,10 @@ class BPProgressView: UIView, CAAnimationDelegate {
         let duration = 0.1
 
         // 设置进度条进度动画
-        let strokeAnimation = CABasicAnimation(keyPath: "strokeEnd")
-        strokeAnimation.fromValue             = self.currentProgress
-        strokeAnimation.toValue               = progress
-        strokeAnimation.duration              = duration
-        strokeAnimation.repeatCount           = 1
-        strokeAnimation.fillMode              = .forwards
-        strokeAnimation.isRemovedOnCompletion = false
-        strokeAnimation.timingFunction        = CAMediaTimingFunction(name: .easeInEaseOut)
-        strokeAnimation.delegate              = self
-        strokeAnimation.setValue(progress, forKey: "progress")
-        self.progressLayer.add(strokeAnimation, forKey: "strokeAnimation")
+        self.progressMask.strokeEnd = CGFloat(progress)
 
         // 设置滑块进度动画
-        if let sliderBar = self.sliderBar {
+        if let sliderBar = self.config.sliderBar {
             let x = self.maxWidth * CGFloat(progress)
             let positionAnimation = CABasicAnimation(keyPath: "position.x")
             positionAnimation.toValue               = x
@@ -171,11 +160,12 @@ class BPProgressView: UIView, CAAnimationDelegate {
     private func updateFrame(_ progress: Float) {
         let progress = self.adjustProgress(progress)
         let progressW = self.maxWidth * CGFloat(progress)
-        self.progressLayer.frame = CGRect(x: progressLayer.frame.origin.x, y: progressLayer.frame.origin.y, width: progressW, height: progressLayer.frame.height)
-        if let sliderBar = self.sliderBar {
+        if let sliderBar = self.config.sliderBar {
             let sliderBarX = progressW - sliderBar.bounds.width / 2
             sliderBar.frame = CGRect(x: sliderBarX, y: sliderBar.frame.origin.y, width: sliderBar.frame.width, height: sliderBar.frame.height)
         }
+        self.lastWidth = progressW
+        self.delegate?.updateProgress(progress)
     }
 
     private func adjustProgress(_ progress: Float) -> Float {
